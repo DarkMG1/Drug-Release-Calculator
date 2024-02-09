@@ -2,6 +2,7 @@ import os
 import sys
 
 import pandas as pd
+import openpyxl
 import numpy as np
 import matplotlib.pyplot as plt
 from sympy import symbols, Eq, solve
@@ -165,11 +166,11 @@ def calculate(data, replication, condensed) -> pd.DataFrame:
     if len(cols['PBS Control']) != 0:
         pbs_calculations = True
     time = data.iloc[rows_248.start:rows_248.stop, cols['Time']]
-    time, absorbtion_808_r848, absorbtion_808_swnt_control, absorbtion_808_drug_control = (
+    time, absorption_808_r848, absorption_808_swnt_control, absorption_808_drug_control = (
         reset_indexes(time, data.iloc[rows_808.start:rows_808.stop, cols['R848']],
                       data.iloc[rows_808.start:rows_808.stop, cols['SWNTs Control']],
                       data.iloc[rows_808.start:rows_808.stop, cols['Drug Control']]))
-    absorbtion_248_r848, absorbtion_248_swnt_control, absorbtion_248_drug_control = (
+    absorption_248_r848, absorption_248_swnt_control, absorption_248_drug_control = (
         reset_indexes(data.iloc[rows_248.start:rows_248.stop, cols['R848']],
                       data.iloc[rows_248.start:rows_248.stop, cols['SWNTs Control']],
                       data.iloc[rows_248.start:rows_248.stop, cols['Drug Control']]))
@@ -183,12 +184,12 @@ def calculate(data, replication, condensed) -> pd.DataFrame:
     graph_nm = pd.DataFrame()
     graph_perc = pd.DataFrame()
 
-    (absorbtion_808_r848, absorbtion_808_swnt_control, absorbtion_808_drug_control,
-     absorbtion_248_r848, absorbtion_248_swnt_control, absorbtion_248_drug_control,
-     time) = convert_to_numeric_dataframes(True, absorbtion_808_r848, absorbtion_808_swnt_control,
-                                           absorbtion_808_drug_control,
-                                           absorbtion_248_r848, absorbtion_248_swnt_control,
-                                           absorbtion_248_drug_control, time)
+    (absorption_808_r848, absorption_808_swnt_control, absorption_808_drug_control,
+     absorption_248_r848, absorption_248_swnt_control, absorption_248_drug_control,
+     time) = convert_to_numeric_dataframes(True, absorption_808_r848, absorption_808_swnt_control,
+                                           absorption_808_drug_control,
+                                           absorption_248_r848, absorption_248_swnt_control,
+                                           absorption_248_drug_control, time)
 
     if pbs_calculations:
         pbs_control_248, pbs_control_808 = convert_to_numeric_dataframes(True, pbs_control_248, pbs_control_808)
@@ -200,43 +201,43 @@ def calculate(data, replication, condensed) -> pd.DataFrame:
     dfs.append(df)
 
     df = pd.DataFrame()
-    df['R848 SWNTs - 808nm'] = ((absorbtion_808_r848.sum(axis=1) / replication) * 1000000) / 7900
-    df['STD (%)'] = absorbtion_808_r848.apply(calculate_std_808, axis=1)
+    df['R848 SWNTs - 808nm'] = ((absorption_808_r848.sum(axis=1) / replication) * 1000000) / 7900
+    df['STD (%)'] = absorption_808_r848.apply(calculate_std_808, axis=1)
     if not condensed:
         dfs.append(df)
 
     df = pd.DataFrame()
-    df['SWNTs Control - 808nm'] = ((absorbtion_808_swnt_control.sum(axis=1) / replication) * 1000000) / 7900
-    df['STD (%)'] = absorbtion_808_swnt_control.apply(calculate_std_808, axis=1)
+    df['SWNTs Control - 808nm'] = ((absorption_808_swnt_control.sum(axis=1) / replication) * 1000000) / 7900
+    df['STD (%)'] = absorption_808_swnt_control.apply(calculate_std_808, axis=1)
     if not condensed:
         dfs.append(df)
 
     df = pd.DataFrame()
-    df['Drug Control - 808nm'] = ((absorbtion_808_drug_control.sum(axis=1) / replication) * 1000000) / 7900
-    df['STD(%)'] = absorbtion_808_drug_control.apply(calculate_std_808, axis=1)
+    df['Drug Control - 808nm'] = ((absorption_808_drug_control.sum(axis=1) / replication) * 1000000) / 7900
+    df['STD(%)'] = absorption_808_drug_control.apply(calculate_std_808, axis=1)
     if not condensed:
         dfs.append(df)
 
     df = pd.DataFrame()
-    df['R848 SWNTs - 248nm'] = ((absorbtion_248_r848.sum(axis=1) / replication) + intercept) / slope
+    df['R848 SWNTs - 248nm'] = ((absorption_248_r848.sum(axis=1) / replication) + intercept) / slope
     percentage_calculations['R848 SWNTS'] = df['R848 SWNTs - 248nm']
     graph_nm['R848 SWNTS'] = df['R848 SWNTs - 248nm']
-    df['STD (%)'] = absorbtion_248_r848.apply(calculate_std_248, axis=1)
+    df['STD (%)'] = absorption_248_r848.apply(calculate_std_248, axis=1)
     percentage_calculations['R848 STD'] = df['STD (%)']
     dfs.append(df)
 
     df = pd.DataFrame()
-    df['SWNTs Control - 248nm'] = ((absorbtion_248_swnt_control.sum(axis=1) / replication) + intercept) / slope
+    df['SWNTs Control - 248nm'] = ((absorption_248_swnt_control.sum(axis=1) / replication) + intercept) / slope
     percentage_calculations['SWNTS Control'] = df['SWNTs Control - 248nm']
     graph_nm['SWNTS Control'] = df['SWNTs Control - 248nm']
-    df['STD (%)'] = absorbtion_248_swnt_control.apply(calculate_std_248, axis=1)
+    df['STD (%)'] = absorption_248_swnt_control.apply(calculate_std_248, axis=1)
     dfs.append(df)
 
     df = pd.DataFrame()
-    df['Drug Control - 248nm'] = ((absorbtion_248_drug_control.sum(axis=1) / replication) + intercept) / slope
+    df['Drug Control - 248nm'] = ((absorption_248_drug_control.sum(axis=1) / replication) + intercept) / slope
     percentage_calculations['Drug Control'] = df['Drug Control - 248nm']
     graph_nm['Drug Control'] = df['Drug Control - 248nm']
-    df['STD (%)'] = absorbtion_248_drug_control.apply(calculate_std_248, axis=1)
+    df['STD (%)'] = absorption_248_drug_control.apply(calculate_std_248, axis=1)
     percentage_calculations['Drug Control STD'] = df['STD (%)']
     dfs.append(df)
 
