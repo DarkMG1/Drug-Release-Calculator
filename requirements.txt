@@ -3,3 +3,4 @@ numpy==1.26.4
 matplotlib==3.8.2
 sympy==1.12
 openpyxl==3.1.2
+xlsxwriter==3.0.1
