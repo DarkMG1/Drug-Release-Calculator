@@ -335,10 +335,11 @@ def calculate(data, replication) -> tuple[pd.DataFrame, pd.DataFrame]:
 
     plt.figure()
     for column in graph_nm_248.columns:
-        plt.scatter(graph_nm_248['Time'], graph_nm_248[column], label=column)
-        z = np.polyfit(graph_nm_248['Time'], graph_nm_248[column], 4)
-        p = np.poly1d(z)
-        plt.plot(sorted(graph_nm_248['Time']), p(sorted(graph_nm_248['Time'])), linestyle='--')
+        if column != 'Time':
+            plt.scatter(graph_nm_248['Time'], graph_nm_248[column], label=column)
+            z = np.polyfit(graph_nm_248['Time'], graph_nm_248[column], 4)
+            p = np.poly1d(z)
+            plt.plot(sorted(graph_nm_248['Time']), p(sorted(graph_nm_248['Time'])), linestyle='--')
 
     plt.title('R848 Release (nM)')
     plt.xlabel('Time (h)')
@@ -352,10 +353,11 @@ def calculate(data, replication) -> tuple[pd.DataFrame, pd.DataFrame]:
     plt.figure()
 
     for column in graph_perc_248.columns:
-        plt.scatter(graph_perc_248['Time'], graph_perc_248[column], label=column)
-        z = np.polyfit(graph_perc_248['Time'], graph_perc_248[column], 4)
-        p = np.poly1d(z)
-        plt.plot(sorted(graph_perc_248['Time']), p(sorted(graph_perc_248['Time'])), linestyle='--')
+        if column != 'Time':
+            plt.scatter(graph_nm_248['Time'], graph_nm_248[column], label=column)
+            z = np.polyfit(graph_nm_248['Time'], graph_nm_248[column], 4)
+            p = np.poly1d(z)
+            plt.plot(sorted(graph_nm_248['Time']), p(sorted(graph_nm_248['Time'])), linestyle='--')
 
     plt.title("R848 Release (%)")
     plt.xlabel('Time (h)')
@@ -368,10 +370,11 @@ def calculate(data, replication) -> tuple[pd.DataFrame, pd.DataFrame]:
 
     plt.figure()
     for column in graph_nm_808.columns:
-        plt.scatter(graph_nm_808['Time'], graph_nm_808[column], label=column)
-        z = np.polyfit(graph_nm_808['Time'], graph_nm_808[column], 4)
-        p = np.poly1d(z)
-        plt.plot(sorted(graph_nm_808['Time']), p(sorted(graph_nm_808['Time'])), linestyle='--')
+        if column != 'Time':
+            plt.scatter(graph_nm_808['Time'], graph_nm_808[column], label=column)
+            z = np.polyfit(graph_nm_808['Time'], graph_nm_808[column], 4)
+            p = np.poly1d(z)
+            plt.plot(sorted(graph_nm_808['Time']), p(sorted(graph_nm_808['Time'])), linestyle='--')
 
     plt.title('R848 Release (nM)')
     plt.xlabel('Time (h)')
@@ -385,10 +388,11 @@ def calculate(data, replication) -> tuple[pd.DataFrame, pd.DataFrame]:
     plt.figure()
 
     for column in graph_perc_808.columns:
-        plt.scatter(graph_perc_808['Time'], graph_perc_808[column], label=column)
-        z = np.polyfit(graph_perc_808['Time'], graph_perc_808[column], 4)
-        p = np.poly1d(z)
-        plt.plot(sorted(graph_perc_808['Time']), p(sorted(graph_perc_808['Time'])), linestyle='--')
+        if column != "Time":
+            plt.scatter(graph_perc_808['Time'], graph_perc_808[column], label=column)
+            z = np.polyfit(graph_perc_808['Time'], graph_perc_808[column], 4)
+            p = np.poly1d(z)
+            plt.plot(sorted(graph_perc_808['Time']), p(sorted(graph_perc_808['Time'])), linestyle='--')
 
     plt.title("R848 Release (%)")
     plt.xlabel('Time (h)')
