@@ -2,15 +2,22 @@ import os
 import sys
 
 import pandas as pd
-import openpyxl
+import openpyxl, xlsxwriter
 import numpy as np
 import matplotlib.pyplot as plt
 from sympy import symbols, Eq, solve
 from enum import Enum
+import importlib.util
 
 class Type(Enum):
     NM808 = 1
     NM248 = 2
+
+def variable_check(var, desired_type):
+    if not isinstance(var, desired_type):
+        print(f"Invalid value found for {var}. Please check the Excel sheet and try again.")
+        sys.exit(1)
+
 
 
 def read_excel_sheet(location) -> (pd.ExcelFile, dict):
@@ -25,6 +32,9 @@ def read_excel_sheet(location) -> (pd.ExcelFile, dict):
 
     return xl, sheets
 
+def is_module_installed(module_name) -> bool:
+    spec = importlib.util.find_spec(module_name)
+    return spec is not None
 
 def write_data_to_excel(sheets, output_location) -> None:
     # Create a new Excel writer object
@@ -116,7 +126,7 @@ def find_row(data, nanometer) -> slice:
             if value == 'Absorption 248 nm':
                 start_row = index + 2
             if value == 'Absorption 808 nm':
-                end_row = index - 4
+                end_row = index - 1
                 break
         return slice(start_row, end_row)
     elif nanometer == Type.NM808:
@@ -144,8 +154,12 @@ def find_columns(data) -> dict[str, list]:
     return cols
 
 
-def calculate(data, replication, condensed) -> pd.DataFrame:
-    dfs = []
+def calculate(data, replication) -> tuple[pd.DataFrame, pd.DataFrame]:
+    nm_248 = []
+    nm_808 = []
+    if data.iloc[9, 1] == 0 or data.iloc[11, 1] == 0 or variable_check(data.iloc[9, 1], int) or variable_check(data.iloc[11, 1], int):
+        print("Invalid values found for loaded SWNTs and control SWNTs. Please check the Excel sheet and try again.")
+        sys.exit(1)
     factor_loaded_swnts, factor_control = concentration_calculations(data, data.iloc[9, 1], data.iloc[11, 1])
     slope, intercept = get_slope_intercept(data.iloc[6, 1])
     pbs_control_248, pbs_control_808, pbs_calculations = None, None, False
@@ -178,10 +192,14 @@ def calculate(data, replication, condensed) -> pd.DataFrame:
         pbs_control_248, pbs_control_808 = reset_indexes(data.iloc[rows_248.start:rows_248.stop, cols['PBS Control']],
                                                          data.iloc[rows_808.start:rows_808.stop, cols['PBS Control']])
 
-    percentage_calculations = pd.DataFrame()
+    percentage_calculations_248 = pd.DataFrame()
+    percentage_calculations_808 = pd.DataFrame()
 
-    graph_nm = pd.DataFrame()
-    graph_perc = pd.DataFrame()
+    graph_nm_248 = pd.DataFrame()
+    graph_perc_248 = pd.DataFrame()
+
+    graph_nm_808 = pd.DataFrame()
+    graph_perc_808 = pd.DataFrame()
 
     (absorption_808_r848, absorption_808_swnt_control, absorption_808_drug_control,
      absorption_248_r848, absorption_248_swnt_control, absorption_248_drug_control,
@@ -195,91 +213,132 @@ def calculate(data, replication, condensed) -> pd.DataFrame:
 
     df = pd.DataFrame()
     df['Time (h)'] = time
-    graph_nm['Time'] = time
-    graph_perc['Time'] = time
-    dfs.append(df)
+    graph_nm_248['Time'] = time
+    graph_perc_248['Time'] = time
+    graph_nm_808['Time'] = time
+    graph_perc_808['Time'] = time
+    nm_248.append(df)
+    nm_808.append(df)
 
     df = pd.DataFrame()
     df['R848 SWNTs - 808nm'] = ((absorption_808_r848.sum(axis=1) / replication) * 1000000) / 7900
+    percentage_calculations_808['R848 SWNTs'] = df['R848 SWNTs - 808nm']
+    graph_nm_808['R848 SWNTs'] = df['R848 SWNTs - 808nm']
     df['STD (%)'] = absorption_808_r848.apply(calculate_std_808, axis=1)
-    if not condensed:
-        dfs.append(df)
+    percentage_calculations_808['R848 STD'] = df['STD (%)']
+    nm_808.append(df)
 
     df = pd.DataFrame()
     df['SWNTs Control - 808nm'] = ((absorption_808_swnt_control.sum(axis=1) / replication) * 1000000) / 7900
+    percentage_calculations_808['SWNTs Control'] = df['SWNTs Control - 808nm']
+    graph_nm_808['SWNTs Control'] = df['SWNTs Control - 808nm']
     df['STD (%)'] = absorption_808_swnt_control.apply(calculate_std_808, axis=1)
-    if not condensed:
-        dfs.append(df)
+    percentage_calculations_808['SWNTs Control STD'] = df['STD (%)']
+    nm_808.append(df)
 
     df = pd.DataFrame()
     df['Drug Control - 808nm'] = ((absorption_808_drug_control.sum(axis=1) / replication) * 1000000) / 7900
+    percentage_calculations_808['Drug Control'] = df['Drug Control - 808nm']
+    graph_nm_808['Drug Control'] = df['Drug Control - 808nm']
     df['STD(%)'] = absorption_808_drug_control.apply(calculate_std_808, axis=1)
-    if not condensed:
-        dfs.append(df)
+    percentage_calculations_808['Drug Control STD'] = df['STD(%)']
+    nm_808.append(df)
 
     df = pd.DataFrame()
     df['R848 SWNTs - 248nm'] = ((absorption_248_r848.sum(axis=1) / replication) + intercept) / slope
-    percentage_calculations['R848 SWNTS'] = df['R848 SWNTs - 248nm']
-    graph_nm['R848 SWNTS'] = df['R848 SWNTs - 248nm']
+    percentage_calculations_248['R848 SWNTs'] = df['R848 SWNTs - 248nm']
+    graph_nm_248['R848 SWNTs'] = df['R848 SWNTs - 248nm']
     df['STD (%)'] = absorption_248_r848.apply(calculate_std_248, axis=1)
-    percentage_calculations['R848 STD'] = df['STD (%)']
-    dfs.append(df)
+    percentage_calculations_248['R848 STD'] = df['STD (%)']
+    nm_248.append(df)
 
     df = pd.DataFrame()
     df['SWNTs Control - 248nm'] = ((absorption_248_swnt_control.sum(axis=1) / replication) + intercept) / slope
-    percentage_calculations['SWNTS Control'] = df['SWNTs Control - 248nm']
-    graph_nm['SWNTS Control'] = df['SWNTs Control - 248nm']
+    percentage_calculations_248['SWNTs Control'] = df['SWNTs Control - 248nm']
+    graph_nm_248['SWNTs Control'] = df['SWNTs Control - 248nm']
     df['STD (%)'] = absorption_248_swnt_control.apply(calculate_std_248, axis=1)
-    dfs.append(df)
+    nm_248.append(df)
 
     df = pd.DataFrame()
     df['Drug Control - 248nm'] = ((absorption_248_drug_control.sum(axis=1) / replication) + intercept) / slope
-    percentage_calculations['Drug Control'] = df['Drug Control - 248nm']
-    graph_nm['Drug Control'] = df['Drug Control - 248nm']
+    percentage_calculations_248['Drug Control'] = df['Drug Control - 248nm']
+    graph_nm_248['Drug Control'] = df['Drug Control - 248nm']
     df['STD (%)'] = absorption_248_drug_control.apply(calculate_std_248, axis=1)
-    percentage_calculations['Drug Control STD'] = df['STD (%)']
-    dfs.append(df)
-
-    df = pd.DataFrame()
-    df['R848 SWNTS - 248nm (%)'] = (((percentage_calculations['R848 SWNTS'] -
-                               percentage_calculations["SWNTS Control"]) / factor_loaded_swnts) * 100)
-    graph_perc['R848 SWNTs'] = df['R848 SWNTS - 248nm (%)']
-    df['STD (%)'] = (percentage_calculations['R848 STD'] / factor_loaded_swnts) * 100
-    dfs.append(df)
-
-    df = pd.DataFrame()
-    df['Drug Control - 248nm (%)'] = ((percentage_calculations['Drug Control'] - 2645) / factor_control) * 100
-    graph_perc['Drug Control'] = df['Drug Control - 248nm (%)']
-    df['STD (%)'] = (percentage_calculations['Drug Control STD'] / factor_control) * 100
-    dfs.append(df)
+    percentage_calculations_248['Drug Control STD'] = df['STD (%)']
+    nm_248.append(df)
 
     if pbs_calculations:
         df = pd.DataFrame()
         df['PBS Control - 248nm'] = ((pbs_control_248.sum(axis=1) / replication) + intercept) / slope
-        percentage_calculations['PBS Control 248'] = df['PBS Control - 248nm']
-        graph_nm['PBS Control'] = df['PBS Control - 248nm']
+        percentage_calculations_248['PBS Control 248'] = df['PBS Control - 248nm']
+        graph_nm_248['PBS Control'] = df['PBS Control - 248nm']
         df['STD'] = pbs_control_248.apply(calculate_std_248, axis=1)
-        dfs.append(df)
+        nm_248.append(df)
 
         df = pd.DataFrame()
         df['PBS Control - 808nm'] = ((pbs_control_808.sum(axis=1) / replication) * 1000000) / 7900
+        percentage_calculations_808['PBS Control 808'] = df['PBS Control - 808nm']
         df['STD (%)'] = pbs_control_808.apply(calculate_std_808, axis=1)
-        if not condensed:
-            dfs.append(df)
+        nm_808.append(df)
 
-    values = pd.concat(dfs, axis=1)
+    df = pd.DataFrame()
+    df['R848 SWNTs - 248nm (%)'] = (((percentage_calculations_248['R848 SWNTs'] -
+                               percentage_calculations_248["SWNTs Control"]) / factor_loaded_swnts) * 100)
+    graph_perc_248['R848 SWNTs'] = df['R848 SWNTs - 248nm (%)']
+    df['STD (%)'] = (percentage_calculations_248['R848 STD'] / factor_loaded_swnts) * 100
+    nm_248.append(df)
 
-    graph_nm, graph_perc = convert_to_numeric_dataframes(False,
-                                                         graph_nm, graph_perc)
+    df = pd.DataFrame()
+    df['R848 SWNTs - 808nm (%)'] = (((percentage_calculations_808['R848 SWNTs'] -
+                               percentage_calculations_808["SWNTs Control"]) / factor_loaded_swnts) * 100)
+    graph_perc_808['R848 SWNTs'] = df['R848 SWNTs - 808nm (%)']
+    df['STD (%)'] = (percentage_calculations_808['R848 STD'] / factor_loaded_swnts) * 100
+    nm_808.append(df)
+
+
+
+    if pbs_calculations:
+        df = pd.DataFrame()
+        df['Drug Control - 248nm (%)'] = ((percentage_calculations_248['Drug Control'] - percentage_calculations_248['PBS Control 248'])
+                                          / factor_control) * 100
+        graph_perc_248['Drug Control'] = df['Drug Control - 248nm (%)']
+        df['STD (%)'] = (percentage_calculations_248['Drug Control STD'] / factor_control) * 100
+        nm_248.append(df)
+
+        df = pd.DataFrame()
+        df['Drug Control - 808nm (%)'] = ((percentage_calculations_808['Drug Control'] - percentage_calculations_808['PBS Control 808'])
+                                          / factor_control) * 100
+        graph_perc_808['Drug Control'] = df['Drug Control - 808nm (%)']
+        df['STD (%)'] = (percentage_calculations_808['Drug Control STD'] / factor_control) * 100
+        nm_808.append(df)
+    else:
+        df = pd.DataFrame()
+        df['Drug Control - 248nm (%)'] = ((percentage_calculations_248['Drug Control'] - 2645) / factor_control) * 100
+        graph_perc_248['Drug Control'] = df['Drug Control - 248nm (%)']
+        df['STD (%)'] = (percentage_calculations_248['Drug Control STD'] / factor_control) * 100
+        nm_248.append(df)
+
+        df = pd.DataFrame()
+        df['Drug Control - 808nm (%)'] = ((percentage_calculations_808['Drug Control'] - 2645) / factor_control) * 100
+        graph_perc_808['Drug Control'] = df['Drug Control - 808nm (%)']
+        df['STD (%)'] = (percentage_calculations_808['Drug Control STD'] / factor_control) * 100
+        nm_808.append(df)
+
+    values_248 = pd.concat(nm_248, axis=1)
+    values_808 = pd.concat(nm_808, axis=1)
+
+    graph_nm_248, graph_perc_248 = convert_to_numeric_dataframes(False,
+                                                         graph_nm_248, graph_perc_248)
+
+    graph_perc_808, graph_perc_808 = convert_to_numeric_dataframes(False,
+                                                                 graph_perc_808, graph_perc_808)
 
     plt.figure()
-    for column in graph_nm.columns:
-        if not pbs_calculations and column == 'PBS Control':
-            continue
-        plt.scatter(graph_nm['Time'], graph_nm[column], label=column)
-        z = np.polyfit(graph_nm['Time'], graph_nm[column], 1)
+    for column in graph_nm_248.columns:
+        plt.scatter(graph_nm_248['Time'], graph_nm_248[column], label=column)
+        z = np.polyfit(graph_nm_248['Time'], graph_nm_248[column], 4)
         p = np.poly1d(z)
-        plt.plot(graph_nm['Time'], p(graph_nm['Time']), linestyle='--')
+        plt.plot(sorted(graph_nm_248['Time']), p(sorted(graph_nm_248['Time'])), linestyle='--')
 
     plt.title('R848 Release (nM)')
     plt.xlabel('Time (h)')
@@ -287,16 +346,16 @@ def calculate(data, replication, condensed) -> pd.DataFrame:
     plt.legend()
     plt.grid(True)
 
-    plt.savefig('R848 Release (nM).png', bbox_inches='tight')
+    plt.savefig('R848 Release (nM) - 248nm.png', bbox_inches='tight')
     plt.close()
 
     plt.figure()
 
-    for column in graph_perc.columns:
-        plt.scatter(graph_perc['Time'], graph_perc[column], label=column)
-        z = np.polyfit(graph_perc['Time'], graph_perc[column], 1)
+    for column in graph_perc_248.columns:
+        plt.scatter(graph_perc_248['Time'], graph_perc_248[column], label=column)
+        z = np.polyfit(graph_perc_248['Time'], graph_perc_248[column], 4)
         p = np.poly1d(z)
-        plt.plot(graph_perc['Time'], p(graph_perc['Time']), linestyle='--')
+        plt.plot(sorted(graph_perc_248['Time']), p(sorted(graph_perc_248['Time'])), linestyle='--')
 
     plt.title("R848 Release (%)")
     plt.xlabel('Time (h)')
@@ -304,24 +363,57 @@ def calculate(data, replication, condensed) -> pd.DataFrame:
     plt.legend()
     plt.grid(True)
 
-    plt.savefig('R848 Release (%).png', bbox_inches='tight')
+    plt.savefig('R848 Release (%) - 248nm.png', bbox_inches='tight')
     plt.close()
 
-    return values
+    plt.figure()
+    for column in graph_nm_808.columns:
+        plt.scatter(graph_nm_808['Time'], graph_nm_808[column], label=column)
+        z = np.polyfit(graph_nm_808['Time'], graph_nm_808[column], 4)
+        p = np.poly1d(z)
+        plt.plot(sorted(graph_nm_808['Time']), p(sorted(graph_nm_808['Time'])), linestyle='--')
+
+    plt.title('R848 Release (nM)')
+    plt.xlabel('Time (h)')
+    plt.ylabel('Average (nM)')
+    plt.legend()
+    plt.grid(True)
+
+    plt.savefig('R848 Release (nM) - 808nm.png', bbox_inches='tight')
+    plt.close()
+
+    plt.figure()
+
+    for column in graph_perc_808.columns:
+        plt.scatter(graph_perc_808['Time'], graph_perc_808[column], label=column)
+        z = np.polyfit(graph_perc_808['Time'], graph_perc_808[column], 4)
+        p = np.poly1d(z)
+        plt.plot(sorted(graph_perc_808['Time']), p(sorted(graph_perc_808['Time'])), linestyle='--')
+
+    plt.title("R848 Release (%)")
+    plt.xlabel('Time (h)')
+    plt.ylabel('Average (%)')
+    plt.legend()
+    plt.grid(True)
+
+    plt.savefig('R848 Release (%) - 808nm.png', bbox_inches='tight')
+    plt.close()
+
+
+    return values_248, values_808
 
 
 if __name__ == "__main__":
+    required_packages = ['pandas', 'openpyxl', 'xlsxwriter', 'numpy', 'matplotlib', 'sympy']
+    for package in required_packages:
+        if not is_module_installed(package):
+            print(f"The package '{package}' is not installed. Please install it and try again.")
+            exit(1)
     if len(sys.argv) < 3:
-        print("Usage: python resiquimod_calculator.py <excel sheet location(str)> <sheet_name(str)> <condensed(bool)>")
+        print("Usage: python resiquimod_calculator.py <excel sheet location(str)> <sheet_name(str)>")
         sys.exit(1)
     excel_sheet_location = sys.argv[1]
     required_sheet_name = sys.argv[2]
-    condensed = True
-    if sys.argv == 5:
-        if sys.argv[4] not in ['True', 'False']:
-            print("The fourth argument must be either True or False")
-            sys.exit(1)
-        condensed = bool(sys.argv[4])
     if not (os.path.exists(excel_sheet_location) and os.path.isfile(excel_sheet_location)):
         if not excel_sheet_location.endswith('.xlsx'):
             print("The file provided is not an Excel file")
@@ -334,32 +426,64 @@ if __name__ == "__main__":
         sys.exit(1)
     data = full_data[required_sheet_name]
     replication = data.iloc[7, 1]
+    if not isinstance(replication, int) or replication == 0:
+        print("The replication value is 0 or invalid. Please check the Excel sheet and try again.")
+        sys.exit(1)
 
-    calculated_output = calculate(data, replication, condensed)
+    calculated_248, calculated_808 = calculate(data, replication)
 
     pH_value = data.iloc[5, 1]
+    try:
+        if pH_value == 0:
+            print("The pH_value value is 0 or invalid. Please check the Excel sheet and try again.")
+            sys.exit(1)
+    except TypeError:
+        print("The pH_value value is 0 or invalid. Please check the Excel sheet and try again.")
+        sys.exit(1)
 
-    output_file = f"R848 Release pH={pH_value}.xlsx"
+
+    output_file = f"./output/R848 Release pH={pH_value}.xlsx"
+
+    if not os.path.exists('./output'):
+        os.makedirs('./output')
+
+    if os.path.exists(output_file):
+        os.remove(output_file)
 
     # Now write the DataFrames to an Excel file
     with pd.ExcelWriter(output_file, engine='xlsxwriter') as writer:
         # Write each DataFrame to a different sheet or the same sheet in Excel
-        calculated_output.to_excel(writer, sheet_name=f"R848 Release pH={pH_value}", startrow=0, startcol=0, index=False)
+        calculated_248.to_excel(writer, sheet_name="Absorption 248nm", startrow=0, startcol=0, index=False)
+        calculated_808.to_excel(writer, sheet_name="Absorption 808nm", startrow=0, startcol=0, index=False)
 
         # Access the xlsxwriter workbook and worksheet objects
         workbook = writer.book
-        worksheet = writer.sheets[f"R848 Release pH={pH_value}"]
+        worksheet_248 = writer.sheets["Absorption 248nm"]
+        worksheet_808 = writer.sheets["Absorption 808nm"]
 
         # Calculate the position where you want to insert your plots
         # For example, below the DataFrames
-        image_row = len(data) + 3
+        image_row_248 = len(calculated_248) + 4
+        image_row_808 = len(calculated_808) + 4
 
         # Insert the plots
-        worksheet.insert_image(image_row, 0, 'R848 Release (nM).png')
-        worksheet.insert_image(image_row, 4, 'R848 Release (%).png')
+        worksheet_248.insert_image(image_row_248, 0, 'R848 Release (nM) - 248nm.png')
+        worksheet_248.insert_image(image_row_248, 4, 'R848 Release (%) - 248nm.png')
 
-        for column in range(calculated_output.shape[1]):
-            worksheet.set_column(column, column, 24)  # Set the column width to 15
+        worksheet_808.insert_image(image_row_808, 0, 'R848 Release (nM) - 808nm.png')
+        worksheet_808.insert_image(image_row_808, 4, 'R848 Release (%) - 808nm.png')
 
-    os.remove('R848 Release (nM).png')
-    os.remove('R848 Release (%).png')
+
+        for column in range(calculated_248.shape[1]):
+            worksheet_248.set_column(column, column, 22)
+        for column in range(calculated_808.shape[1]):
+            worksheet_808.set_column(column, column, 22)
+
+    os.remove('R848 Release (nM) - 248nm.png')
+    os.remove('R848 Release (%) - 248nm.png')
+    os.remove('R848 Release (nM) - 808nm.png')
+    os.remove('R848 Release (%) - 808nm.png')
+
+    print(f"Data has been written to {output_file}")
+    print("The program will now exit.")
+    sys.exit(0)
