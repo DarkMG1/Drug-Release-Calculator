@@ -90,16 +90,15 @@ def get_slope_intercept(equation):
 def convert_to_numeric_dataframes(exit_if_null, *data) -> tuple[pd.DataFrame, ...]:
     numeric = []
     for each in data:
-        each = each.apply(pd.to_numeric, errors='coerce')
+        new_data = each.apply(pd.to_numeric, errors='coerce')
         if exit_if_null:
-            if each.isnull().values.any():
+            if new_data.isnull().values.any():
                 print("Please check the data provided. There are blank cells in the data.")
-                print("The blank cells are located at the following row and column:")
-                print(each[each.isnull().any(axis=1)].index)
-                print(each[each.isnull().any(axis=1)].columns)
+                print(new_data)
+                print("Above is the data that is causing the issue. Please check the Excel sheet and try again.")
                 sys.exit(1)
-        each = each.dropna()
-        numeric.append(each)
+        new_data = new_data.dropna()
+        numeric.append(new_data)
     return tuple(numeric)
 
 def concentration_calculations(data, loaded, control) -> tuple[float, float]:
@@ -313,7 +312,7 @@ def calculate(data, replication, condensed) -> pd.DataFrame:
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("Usage: python resiquimod_calculations.py <excel sheet location(str)> <sheet_name(str)> <condensed(bool)>")
+        print("Usage: python resiquimod_calculator.py <excel sheet location(str)> <sheet_name(str)> <condensed(bool)>")
         sys.exit(1)
     excel_sheet_location = sys.argv[1]
     required_sheet_name = sys.argv[2]
