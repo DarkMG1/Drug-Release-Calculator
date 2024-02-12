@@ -136,15 +136,15 @@ def find_row(data, nanometer) -> slice:
         end_row = time_column.size
         return slice(start_row, end_row)
 
-def find_columns(data) -> dict[str, list]:
+def find_columns(data, drug_name) -> dict[str, list]:
     header_row = data.iloc[1, :17]
-    cols = {"Time": [], "R848": [], "SWNTs Control": [], "Drug Control": [], "PBS Control": []}
+    cols = {"Time": [], drug_name: [], "SWNTs Control": [], "Drug Control": [], "PBS Control": []}
     for index, value in enumerate(header_row):
         value = str(value)
         if value.startswith("Time"):
             cols["Time"].append(index)
-        elif value.startswith("R848"):
-            cols["R848"].append(index)
+        elif value.startswith(drug_name):
+            cols[drug_name].append(index)
         elif value.startswith("SWNT"):
             cols["SWNTs Control"].append(index)
         elif value.startswith("Drug Con"):
@@ -154,7 +154,7 @@ def find_columns(data) -> dict[str, list]:
     return cols
 
 
-def calculate(data, replication) -> tuple[pd.DataFrame, pd.DataFrame]:
+def calculate(data, replication, drug_name) -> tuple[pd.DataFrame, pd.DataFrame]:
     nm_248 = []
     nm_808 = []
     if data.iloc[9, 1] == 0 or data.iloc[11, 1] == 0 or variable_check(data.iloc[9, 1], int) or variable_check(data.iloc[11, 1], int):
@@ -174,17 +174,17 @@ def calculate(data, replication) -> tuple[pd.DataFrame, pd.DataFrame]:
         print("Invalid data provided. Invalid values found for 808 nm. Check the Excel sheet and try again.")
         sys.exit(1)
 
-    cols = find_columns(data)
+    cols = find_columns(data, drug_name)
 
     if len(cols['PBS Control']) != 0:
         pbs_calculations = True
     time = data.iloc[rows_248.start:rows_248.stop, cols['Time']]
-    time, absorption_808_r848, absorption_808_swnt_control, absorption_808_drug_control = (
-        reset_indexes(time, data.iloc[rows_808.start:rows_808.stop, cols['R848']],
+    time, absorption_808_loaded_drug, absorption_808_swnt_control, absorption_808_drug_control = (
+        reset_indexes(time, data.iloc[rows_808.start:rows_808.stop, cols[drug_name]],
                       data.iloc[rows_808.start:rows_808.stop, cols['SWNTs Control']],
                       data.iloc[rows_808.start:rows_808.stop, cols['Drug Control']]))
-    absorption_248_r848, absorption_248_swnt_control, absorption_248_drug_control = (
-        reset_indexes(data.iloc[rows_248.start:rows_248.stop, cols['R848']],
+    absorption_248_loaded_drug, absorption_248_swnt_control, absorption_248_drug_control = (
+        reset_indexes(data.iloc[rows_248.start:rows_248.stop, cols[drug_name]],
                       data.iloc[rows_248.start:rows_248.stop, cols['SWNTs Control']],
                       data.iloc[rows_248.start:rows_248.stop, cols['Drug Control']]))
 
@@ -201,11 +201,11 @@ def calculate(data, replication) -> tuple[pd.DataFrame, pd.DataFrame]:
     graph_nm_808 = pd.DataFrame()
     graph_perc_808 = pd.DataFrame()
 
-    (absorption_808_r848, absorption_808_swnt_control, absorption_808_drug_control,
-     absorption_248_r848, absorption_248_swnt_control, absorption_248_drug_control,
-     time) = convert_to_numeric_dataframes(True, absorption_808_r848, absorption_808_swnt_control,
+    (absorption_808_loaded_drug, absorption_808_swnt_control, absorption_808_drug_control,
+     absorption_248_loaded_drug, absorption_248_swnt_control, absorption_248_drug_control,
+     time) = convert_to_numeric_dataframes(True, absorption_808_loaded_drug, absorption_808_swnt_control,
                                            absorption_808_drug_control,
-                                           absorption_248_r848, absorption_248_swnt_control,
+                                           absorption_248_loaded_drug, absorption_248_swnt_control,
                                            absorption_248_drug_control, time)
 
     if pbs_calculations:
@@ -221,11 +221,11 @@ def calculate(data, replication) -> tuple[pd.DataFrame, pd.DataFrame]:
     nm_808.append(df)
 
     df = pd.DataFrame()
-    df['R848 SWNTs - 808nm'] = ((absorption_808_r848.sum(axis=1) / replication) * 1000000) / 7900
-    percentage_calculations_808['R848 SWNTs'] = df['R848 SWNTs - 808nm']
-    graph_nm_808['R848 SWNTs'] = df['R848 SWNTs - 808nm']
-    df['STD (%)'] = absorption_808_r848.apply(calculate_std_808, axis=1)
-    percentage_calculations_808['R848 STD'] = df['STD (%)']
+    df[f'{drug_name} SWNTs - 808nm'] = ((absorption_808_loaded_drug.sum(axis=1) / replication) * 1000000) / 7900
+    percentage_calculations_808[drug_name + ' SWNTs'] = df[f'{drug_name} SWNTs - 808nm']
+    graph_nm_808[f'{drug_name} SWNTs'] = df[f'{drug_name} SWNTs - 808nm']
+    df['STD (%)'] = absorption_808_loaded_drug.apply(calculate_std_808, axis=1)
+    percentage_calculations_808[f'{drug_name} STD'] = df['STD (%)']
     nm_808.append(df)
 
     df = pd.DataFrame()
@@ -245,11 +245,11 @@ def calculate(data, replication) -> tuple[pd.DataFrame, pd.DataFrame]:
     nm_808.append(df)
 
     df = pd.DataFrame()
-    df['R848 SWNTs - 248nm'] = ((absorption_248_r848.sum(axis=1) / replication) + intercept) / slope
-    percentage_calculations_248['R848 SWNTs'] = df['R848 SWNTs - 248nm']
-    graph_nm_248['R848 SWNTs'] = df['R848 SWNTs - 248nm']
-    df['STD (%)'] = absorption_248_r848.apply(calculate_std_248, axis=1)
-    percentage_calculations_248['R848 STD'] = df['STD (%)']
+    df[f'{drug_name} SWNTs - 248nm'] = ((absorption_248_loaded_drug.sum(axis=1) / replication) + intercept) / slope
+    percentage_calculations_248[f'{drug_name} SWNTs'] = df[f'{drug_name} SWNTs - 248nm']
+    graph_nm_248[f'{drug_name} SWNTs'] = df[f'{drug_name} SWNTs - 248nm']
+    df['STD (%)'] = absorption_248_loaded_drug.apply(calculate_std_248, axis=1)
+    percentage_calculations_248[f'{drug_name} STD'] = df['STD (%)']
     nm_248.append(df)
 
     df = pd.DataFrame()
@@ -282,17 +282,17 @@ def calculate(data, replication) -> tuple[pd.DataFrame, pd.DataFrame]:
         nm_808.append(df)
 
     df = pd.DataFrame()
-    df['R848 SWNTs - 248nm (%)'] = (((percentage_calculations_248['R848 SWNTs'] -
+    df[f'{drug_name} SWNTs - 248nm (%)'] = (((percentage_calculations_248[f'{drug_name} SWNTs'] -
                                percentage_calculations_248["SWNTs Control"]) / factor_loaded_swnts) * 100)
-    graph_perc_248['R848 SWNTs'] = df['R848 SWNTs - 248nm (%)']
-    df['STD (%)'] = (percentage_calculations_248['R848 STD'] / factor_loaded_swnts) * 100
+    graph_perc_248[f'{drug_name} SWNTs'] = df[f'{drug_name} SWNTs - 248nm (%)']
+    df['STD (%)'] = (percentage_calculations_248[f'{drug_name} STD'] / factor_loaded_swnts) * 100
     nm_248.append(df)
 
     df = pd.DataFrame()
-    df['R848 SWNTs - 808nm (%)'] = (((percentage_calculations_808['R848 SWNTs'] -
+    df[f'{drug_name} SWNTs - 808nm (%)'] = (((percentage_calculations_808[f'{drug_name} SWNTs'] -
                                percentage_calculations_808["SWNTs Control"]) / factor_loaded_swnts) * 100)
-    graph_perc_808['R848 SWNTs'] = df['R848 SWNTs - 808nm (%)']
-    df['STD (%)'] = (percentage_calculations_808['R848 STD'] / factor_loaded_swnts) * 100
+    graph_perc_808[f'{drug_name} SWNTs'] = df[f'{drug_name} SWNTs - 808nm (%)']
+    df['STD (%)'] = (percentage_calculations_808[f'{drug_name} STD'] / factor_loaded_swnts) * 100
     nm_808.append(df)
 
 
@@ -341,13 +341,13 @@ def calculate(data, replication) -> tuple[pd.DataFrame, pd.DataFrame]:
             p = np.poly1d(z)
             plt.plot(sorted(graph_nm_248['Time']), p(sorted(graph_nm_248['Time'])), linestyle='--')
 
-    plt.title('R848 Release (nM)')
+    plt.title(f'{drug_name} Release (nM)')
     plt.xlabel('Time (h)')
     plt.ylabel('Average (nM)')
     plt.legend()
     plt.grid(True)
 
-    plt.savefig('R848 Release (nM) - 248nm.png', bbox_inches='tight')
+    plt.savefig(f'{drug_name} Release (nM) - 248nm.png', bbox_inches='tight')
     plt.close()
 
     plt.figure()
@@ -359,13 +359,13 @@ def calculate(data, replication) -> tuple[pd.DataFrame, pd.DataFrame]:
             p = np.poly1d(z)
             plt.plot(sorted(graph_nm_248['Time']), p(sorted(graph_nm_248['Time'])), linestyle='--')
 
-    plt.title("R848 Release (%)")
+    plt.title(f"{drug_name} Release (%)")
     plt.xlabel('Time (h)')
     plt.ylabel('Average (%)')
     plt.legend()
     plt.grid(True)
 
-    plt.savefig('R848 Release (%) - 248nm.png', bbox_inches='tight')
+    plt.savefig(f'{drug_name} Release (%) - 248nm.png', bbox_inches='tight')
     plt.close()
 
     plt.figure()
@@ -376,13 +376,13 @@ def calculate(data, replication) -> tuple[pd.DataFrame, pd.DataFrame]:
             p = np.poly1d(z)
             plt.plot(sorted(graph_nm_808['Time']), p(sorted(graph_nm_808['Time'])), linestyle='--')
 
-    plt.title('R848 Release (nM)')
+    plt.title(f'{drug_name} Release (nM)')
     plt.xlabel('Time (h)')
     plt.ylabel('Average (nM)')
     plt.legend()
     plt.grid(True)
 
-    plt.savefig('R848 Release (nM) - 808nm.png', bbox_inches='tight')
+    plt.savefig(f'{drug_name} Release (nM) - 808nm.png', bbox_inches='tight')
     plt.close()
 
     plt.figure()
@@ -394,13 +394,13 @@ def calculate(data, replication) -> tuple[pd.DataFrame, pd.DataFrame]:
             p = np.poly1d(z)
             plt.plot(sorted(graph_perc_808['Time']), p(sorted(graph_perc_808['Time'])), linestyle='--')
 
-    plt.title("R848 Release (%)")
+    plt.title(f'{drug_name} Release (%)')
     plt.xlabel('Time (h)')
     plt.ylabel('Average (%)')
     plt.legend()
     plt.grid(True)
 
-    plt.savefig('R848 Release (%) - 808nm.png', bbox_inches='tight')
+    plt.savefig(f'{drug_name} Release (%) - 808nm.png', bbox_inches='tight')
     plt.close()
 
 
@@ -434,7 +434,12 @@ if __name__ == "__main__":
         print("The replication value is 0 or invalid. Please check the Excel sheet and try again.")
         sys.exit(1)
 
-    calculated_248, calculated_808 = calculate(data, replication)
+    drug_name = data.iloc[0, 1]
+    if not isinstance(drug_name, str):
+        print("Invalid value found for drug name. Please check the Excel sheet and try again.")
+        sys.exit(1)
+
+    calculated_248, calculated_808 = calculate(data, replication, drug_name)
 
     pH_value = data.iloc[5, 1]
     try:
@@ -446,7 +451,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
 
-    output_file = f"./output/R848 Release pH={pH_value}.xlsx"
+    output_file = f"./output/{drug_name} Release pH={pH_value}.xlsx"
 
     if not os.path.exists('./output'):
         os.makedirs('./output')
@@ -471,11 +476,11 @@ if __name__ == "__main__":
         image_row_808 = len(calculated_808) + 4
 
         # Insert the plots
-        worksheet_248.insert_image(image_row_248, 0, 'R848 Release (nM) - 248nm.png')
-        worksheet_248.insert_image(image_row_248, 4, 'R848 Release (%) - 248nm.png')
+        worksheet_248.insert_image(image_row_248, 0, f'{drug_name} Release (nM) - 248nm.png')
+        worksheet_248.insert_image(image_row_248, 4, f'{drug_name} Release (%) - 248nm.png')
 
-        worksheet_808.insert_image(image_row_808, 0, 'R848 Release (nM) - 808nm.png')
-        worksheet_808.insert_image(image_row_808, 4, 'R848 Release (%) - 808nm.png')
+        worksheet_808.insert_image(image_row_808, 0, f'{drug_name} Release (nM) - 808nm.png')
+        worksheet_808.insert_image(image_row_808, 4, f'{drug_name} Release (%) - 808nm.png')
 
 
         for column in range(calculated_248.shape[1]):
@@ -483,10 +488,10 @@ if __name__ == "__main__":
         for column in range(calculated_808.shape[1]):
             worksheet_808.set_column(column, column, 22)
 
-    os.remove('R848 Release (nM) - 248nm.png')
-    os.remove('R848 Release (%) - 248nm.png')
-    os.remove('R848 Release (nM) - 808nm.png')
-    os.remove('R848 Release (%) - 808nm.png')
+    os.remove(f'{drug_name} Release (nM) - 248nm.png')
+    os.remove(f'{drug_name} Release (%) - 248nm.png')
+    os.remove(f'{drug_name} Release (nM) - 808nm.png')
+    os.remove(f'{drug_name} Release (%) - 808nm.png')
 
     print(f"Data has been written to {output_file}")
     print("The program will now exit.")
