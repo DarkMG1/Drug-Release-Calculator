@@ -1,4 +1,4 @@
-# Resiquimod Calculator
+# Drug Release Calculator
 
 This is a script which takes 3 inputs
 1. The location of the excel file containing the data
